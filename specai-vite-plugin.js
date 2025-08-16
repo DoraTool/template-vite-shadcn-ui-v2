@@ -1,3 +1,8 @@
+/**
+ * WARNING: DO NOT MODIFY THIS FILE
+ * This file is auto-generated and any manual changes will be overwritten.
+ */
+
 import { parse } from "@babel/parser";
 import _traverse from "@babel/traverse";
 import _generate from "@babel/generator";
@@ -31,7 +36,7 @@ function componentSpecTree() {
 
         const visited = new Set();
 
-        // 2. 遍历 AST 修改 JSX
+        // 2. Traverse AST to modify JSX
         traverse(ast, {
           JSXElement(path) {
             const openingElement = path.node.openingElement;
@@ -40,7 +45,7 @@ function componentSpecTree() {
               return;
             }
 
-            // 仅处理大写开头的组件（自定义组件）
+            // Only process components starting with uppercase (custom components)
             if (
               t.isJSXIdentifier(openingElement.name) &&
               /^[A-Z]/.test(openingElement.name.name)
@@ -55,7 +60,7 @@ function componentSpecTree() {
                 return;
               }
 
-              // 找到 data-spec-id
+              // Find data-spec-id
               let doraId = "";
               if (openingElement.attributes.length > 0) {
                 const attr = openingElement.attributes.find(
@@ -71,7 +76,7 @@ function componentSpecTree() {
                 return;
               }
 
-              // 生成 <specai-tag-start> 节点
+              // Generate <specai-tag-start> node
               const debugStart = t.jsxElement(
                 t.jsxOpeningElement(
                   t.jsxIdentifier("specai-tag-start"),
@@ -85,14 +90,14 @@ function componentSpecTree() {
                       t.stringLiteral(String(doraId))
                     ),
                   ],
-                  true // 自闭合
+                  true // Self-closing
                 ),
                 null,
                 [],
                 true
               );
 
-              // 生成 <specai-tag-end> 节点
+              // Generate <specai-tag-end> node
               const debugEnd = t.jsxElement(
                 t.jsxOpeningElement(
                   t.jsxIdentifier("specai-tag-end"),
@@ -106,32 +111,32 @@ function componentSpecTree() {
                       t.stringLiteral(String(doraId))
                     ),
                   ],
-                  true // 自闭合
+                  true // Self-closing
                 ),
                 null,
                 [],
                 true
               );
 
-              // 用 Fragment (<>) 包裹原有子节点 + 调试标签
+              // Wrap original child nodes + debug tags with Fragment (<>)
               const fragment = t.jsxFragment(
                 t.jsxOpeningFragment(),
                 t.jsxClosingFragment(),
                 [
                   debugStart, // <specai-tag-start>
-                  path.node, // 原有子节点
+                  path.node, // Original child nodes
                   debugEnd, // <specai-tag-end>
                 ]
               );
 
               visited.add(path.node);
-              // 替换当前节点为 Fragment
+              // Replace current node with Fragment
               path.replaceWith(fragment);
             }
           },
         });
 
-        // 3. 生成修改后的代码
+        // 3. Generate modified code
         return generate(ast).code;
       } catch (error) {
         console.error("Error processing file " + id + ":", error);
