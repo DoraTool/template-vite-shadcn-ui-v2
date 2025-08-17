@@ -1,124 +1,226 @@
-const style = document.createElement("style");
-style.innerText = "specai-tag-start, specai-tag-end {display: none;}";
-document.body.appendChild(style);
+const SPEC_STYLE_ID = 'spec-style'
+let isPreview = true
+
+function refreshSpecStyle() {
+  let style = document.getElementById(SPEC_STYLE_ID)
+  if (!style) {
+    style = document.createElement('style')
+    style.setAttribute('id', SPEC_STYLE_ID)
+    document.head.appendChild(style)
+  }
+
+  style.innerHTML = `
+    specai-tag-start, specai-tag-end {
+      display: none;
+    }
+    :root {
+      --spec-vh: ${isPreview ? '1vh' : '9px'}
+    }
+  `
+}
 
 const sendMessageToParent = (type, data) => {
   if (window.parent) {
-    window.parent.postMessage({ type, data }, "*");
+    window.parent.postMessage({ type, data }, '*')
   }
-};
+}
+
+// Forward console.log and console.warn to parent
+const originalLog = console.log
+const originalWarn = console.warn
+
+console.log = (...args) => {
+  originalLog.apply(console, args)
+  sendMessageToParent('CONSOLE_LOG', {
+    level: 'log',
+    args: args.map((arg) => {
+      try {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      } catch (e) {
+        return String(arg)
+      }
+    }),
+    timestamp: Date.now(),
+  })
+}
+
+console.warn = (...args) => {
+  originalWarn.apply(console, args)
+  sendMessageToParent('CONSOLE_LOG', {
+    level: 'warn',
+    args: args.map((arg) => {
+      try {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      } catch (e) {
+        return String(arg)
+      }
+    }),
+    timestamp: Date.now(),
+  })
+}
 
 // Get all parent dora-ids
 const getAllDoraIds = (element) => {
-  const allDoraIds = [];
-  let prevSibling = element.previousElementSibling;
+  const allDoraIds = []
+  let prevSibling = element.previousElementSibling
 
   while (prevSibling) {
-    if (prevSibling.tagName.toLowerCase() === "specai-tag-start") {
-      const doraId = prevSibling.getAttribute("data-spec-id");
+    if (prevSibling.tagName.toLowerCase() === 'specai-tag-start') {
+      const doraId = prevSibling.getAttribute('data-spec-id')
       if (doraId) {
-        allDoraIds.unshift(doraId);
+        allDoraIds.unshift(doraId)
       }
     } else {
-      break;
+      break
     }
-    prevSibling = prevSibling.previousElementSibling;
+    prevSibling = prevSibling.previousElementSibling
   }
 
-  const doraId = element.getAttribute("data-spec-id");
+  const doraId = element.getAttribute('data-spec-id')
   if (doraId) {
-    allDoraIds.push(doraId);
+    allDoraIds.push(doraId)
   }
 
-  return allDoraIds;
-};
+  return allDoraIds
+}
 
-const getDomInfo = (element) => {
-  const rect = element.getBoundingClientRect();
+const isVisible = (element) => {
+  const style = window.getComputedStyle(element)
+  return (
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    style.opacity !== '0'
+  )
+}
+
+function processAllStyles() {
+  const styles = document.querySelectorAll('style:not([data-vh-processed])')
+
+  styles.forEach((style) => {
+    if (style.id === SPEC_STYLE_ID) {
+      return
+    }
+
+    style.textContent = style.textContent.replace(
+      /([\d.]+)vh/g,
+      (match, num) => {
+        const value = parseFloat(num)
+        return `calc(${value} * var(--spec-vh))`
+      }
+    )
+    style.setAttribute('data-vh-processed', 'true')
+  })
+}
+
+const EXCLUDE_TAG_NAMES = [
+  'specai-tag-start',
+  'specai-tag-end',
+  'svg',
+  'style',
+  'script',
+]
+
+const getDomInfo = (element, extra) => {
+  const rect = element.getBoundingClientRect()
   const position = {
     x: rect.left + window.scrollX,
     y: rect.top + window.scrollY,
-  };
+  }
   const size = {
     width: rect.width,
     height: rect.height,
-  };
+  }
 
   const children = Array.from(element.children)
     .filter((node) => {
-      const tagName = node.tagName.toLowerCase();
-      return tagName !== "specai-tag-start" && tagName !== "specai-tag-end";
+      const tagName = node.tagName.toLowerCase()
+      return !EXCLUDE_TAG_NAMES.includes(tagName) && isVisible(node)
     })
-    .map((node) => getDomInfo(node));
+    .map((node) => getDomInfo(node, extra))
 
-  const ids = getAllDoraIds(element);
+  const ids = getAllDoraIds(element)
+
+  if (extra && ids[0]) {
+    extra.ready = true
+  }
 
   const res = {
-    nodeType: "element",
+    nodeType: 'element',
     tagName: element.tagName.toLowerCase(),
     componentName: element.tagName,
-    id: ids[0] || "",
+    id: ids[0] || '',
     allIds: ids,
     position,
     size,
     children,
-  };
-
-  if (element.hasAttribute("data-component-container")) {
-    res["componentContainerWidth"] = element.scrollWidth + 160;
   }
 
-  return res;
-};
+  return res
+}
 
 const sendDomStructure = () => {
-  const rootElement = document.getElementById("root");
+  const rootElement = document.getElementById('root')
   if (rootElement) {
-    const domStructure = getDomInfo(rootElement);
+    processAllStyles()
+
+    const extra = { ready: false }
+    const domStructure = getDomInfo(rootElement, extra)
+
+    if (!extra.ready) {
+      return
+    }
 
     if (!domStructure.size.width && !domStructure.size.height) {
-      return;
+      return
     }
+
+    const curHeight = Math.max(
+      document.body.clientHeight,
+      document.body.scrollHeight,
+      document.body.offsetHeight,
+      990
+    )
 
     const viewportSize = {
       width: Math.max(
-        document.documentElement.clientWidth,
-        document.documentElement.scrollWidth,
-        document.documentElement.offsetWidth
+        document.body.clientWidth,
+        document.body.scrollWidth,
+        document.body.offsetWidth
       ),
-      height: Math.max(
-        document.documentElement.clientHeight,
-        document.documentElement.scrollHeight,
-        document.documentElement.offsetHeight,
-        1280
-      ),
-    };
+      height: curHeight,
+    }
 
-    sendMessageToParent("DOM_STRUCTURE", {
+    sendMessageToParent('DOM_STRUCTURE', {
       structure: domStructure,
       viewport: viewportSize,
-    });
+      url: location.href,
+    })
 
-    return domStructure;
+    return domStructure
   }
-};
-
-// Handle viewport commands
-window.addEventListener("message", (event) => {
-  if (event.data.type === "REQUEST_DOM_STRUCTURE") {
-    const struct = sendDomStructure();
-  }
-});
-
-// Initialize
-function onLoad(ms) {
-  setTimeout(() => {
-    const struct = sendDomStructure();
-
-    if (!struct || !struct.children.length) {
-      onLoad(2000);
-    }
-  }, ms);
 }
 
-onLoad(500);
+let specHoldingCount = 0
+
+// Handle viewport commands
+window.addEventListener('message', (event) => {
+  if (event.data.type === 'SET_IFRAME_STATE') {
+    if (!!event.data.isPreview !== isPreview) {
+      isPreview = !!event.data.isPreview
+      if (!isPreview) {
+        specHoldingCount = 0
+      }
+
+      refreshSpecStyle()
+    }
+  }
+})
+
+refreshSpecStyle()
+
+// send dom change ever 700ms
+setInterval(() => {
+  if (isPreview || specHoldingCount++ >= 1) {
+    sendDomStructure()
+  }
+}, 700)
