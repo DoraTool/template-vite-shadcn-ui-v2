@@ -11,7 +11,11 @@
     <script type="module" src="/src/main.tsx"></script>
 
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
-    <script src="specai_dev.js"></script>
+    <script>
+      const script = document.createElement('script');
+      script.src = '/specai_dev.js';
+      document.head.appendChild(script);
+    </script>
     <style>
       specai-tag-start,
       specai-tag-end {

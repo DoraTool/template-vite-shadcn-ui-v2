@@ -28,6 +28,7 @@ const sendMessageToParent = (type, data) => {
 // Forward console.log and console.warn to parent
 const originalLog = console.log
 const originalWarn = console.warn
+const originalError = console.error
 
 console.log = (...args) => {
   originalLog.apply(console, args)
@@ -59,9 +60,8 @@ console.warn = (...args) => {
   })
 }
 
-
 console.error = (...args) => {
-  originalWarn.apply(console, args)
+  originalError.apply(console, args)
   sendMessageToParent('ERROR', {
     args: args.map((arg) => {
       try {
