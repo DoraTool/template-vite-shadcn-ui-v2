@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     hmr: false,
   },
-  plugins: [react(), mode === "development" && componentSpecTree()].filter(
+  // plugins: [react(), mode === "development" && componentSpecTree()].filter(
+  plugins: [react(), componentSpecTree()].filter(
     Boolean
   ),
   resolve: {

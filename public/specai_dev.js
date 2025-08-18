@@ -59,6 +59,28 @@ console.warn = (...args) => {
   })
 }
 
+
+console.error = (...args) => {
+  originalWarn.apply(console, args)
+  sendMessageToParent('ERROR', {
+    args: args.map((arg) => {
+      try {
+        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      } catch (e) {
+        return String(arg)
+      }
+    }),
+    stack: new Error().stack
+  })
+}
+
+window.addEventListener('error', (event) => {
+  sendMessageToParent('ERROR', {
+    args: { message: event.error.message },
+    stack: event.error.stack || new Error().stack
+  })
+});
+
 // Get all parent dora-ids
 const getAllDoraIds = (element) => {
   const allDoraIds = []
